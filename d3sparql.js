@@ -157,7 +157,7 @@ d3sparql.graph = function(json, config) {
     config = {
       "root":   "root_name",    // SPARQL variable name for root node (optional; default is the 1st variable)
       "parent": "parent_name",  // SPARQL variable name for parent node (optional; default is the 2nd variable)
-      "child":  "child_name",   // SPARQL variable name for child node (ptional; default is the 3rd variable)
+      "child":  "child_name",   // SPARQL variable name for child node (optional; default is the 3rd variable)
       "value":  "value_name"    // SPARQL variable name for numerical value of the child node (optional; default is the 4th variable or "value")
     }
 
@@ -224,6 +224,83 @@ d3sparql.tree = function(json, config) {
   if (d3sparql.debug) { console.log(JSON.stringify(tree)) }
   return tree
 }
+
+/*
+Convert sparql-results+json object into a JSON tree of {"name": name, "value": size, "children": []} format like in the flare.json file.
+A more generic implementation than the d3sparql.tree as it allow any number of colum before the "value" one and build the tree for this structure.
+Columns in the sparql results have to be ordered by the parent/children order.
+
+  Options:
+    config = {
+      "root":   "root_name",    // Name of the root level of the graphic (optional, default is "Graphic"
+      "value":  "value_name"    // SPARQL variable name for numerical value of the child node (optional; default is the 4th variable or "value")
+    }
+*/
+d3sparql.sparqlResultsToTree = function(json, config) {
+	  config = config || {}
+	  
+	  var opts = {
+	    "root":   config.root   || "Graphic",
+	    "value":  config.value  || "value",
+	  }
+    
+    var data = json.results.bindings;
+    
+    var root = { name : opts.root , children : [], path : "0_root"};
+    var index= { "0_root" : root};
+    
+    //data.reduce(function(previous,current,index,array){
+    data.forEach(function(current,i){
+        
+        //var reduceline = { };
+        Object.keys(current).reduce(function(prev,cur,i,arr){
+            
+            if(cur == opts.value){
+                prev.value = +current[cur].value;
+                return prev;
+            }else{
+                var index_key = prev.path+"_"+i+"_"+current[cur].value;
+                var parent = null;
+                
+                if(!index[index_key]){
+                    curentObj = { name : current[cur].value};
+                    curentObj.path = index_key;
+                    index[index_key] = curentObj;
+                    
+                    if(!prev.children) prev.children = [];
+                    prev.children.push(curentObj);
+                }else{
+                    curentObj = index[index_key];
+                }
+                
+                return curentObj;
+                
+            }
+                      
+        },root)
+        
+        //return previous;
+    });
+	
+    //Second part : calculate value property
+    function getValue(obj){
+        if(obj.children){
+            obj.value = 0;
+            obj.children.forEach(function(child){
+                obj.value += getValue(child);
+            });
+            return obj.value;
+        }else{
+            return obj.value;
+        }
+    };
+    
+    
+    
+    getValue(root);
+    
+    return root;
+};
 
 /*
   Rendering sparql-results+json object containing multiple rows into a HTML table
